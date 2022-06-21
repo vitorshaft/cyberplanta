@@ -34,6 +34,73 @@ int sensor_solo = 0;
 
 int contador = 0;
 int umidade = 0;
+float h;
+float t;
+float luz;
+int instantanea;
+int media;
+int um_pct;
+
+/////////////// PRIMEIRA PARTE DA PAGINA
+
+const char antes[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>HTML Form ESP8266 - ESPAlexa</title>
+<style>
+body {color: #434343; font-family: "Helvetica Neue",Helvetica,Arial,sans-serif; font-size: 14px; background-color: #393939; margin-top: 100px;}
+.container {margin: 0 auto; max-width: 400px; padding: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23); background-color: #ffffff; border-radius: 10px;}
+h2 {text-align: center; margin-bottom: 20px; margin-top: 0px; color: #0ee6b1; font-size: 35px;}
+#titleGreen {color: #0ca060;}
+#titleBlack {color: #4D4D4D;}
+h3 {text-align: center; margin-bottom: 40px; margin-top: 0px; color: #0ca060; font-size: 20px;}
+h4 {text-align: left; margin-bottom: 20px; margin-top: 0px; color: #4d4d4d; font-size: 16px;}
+form .field-group {box-sizing: border-box; clear: both; padding: 4px 0; position: relative; margin: 1px 0; width: 100%;}
+.text-field {font-size: 15px; margin-bottom: 4%; -webkit-appearance: none; display: block; background: #fafafa; color: #636363; width: 100%; padding: 15px 0px 15px 0px; text-indent: 10px; border-radius: 5px; border: 1px solid #e6e6e6; background-color: transparent;}
+.text-field:focus {border-color: #00bcd4; outline: 0;}
+.button-container {box-sizing: border-box; clear: both; margin: 1px 0 0; padding: 4px 0; position: relative; width: 100%;}
+.button {background: #0ca060; border: none; border-radius: 5px; color: #ffffff; cursor: pointer; display: block; font-weight: bold; font-size: 16px; padding: 15px 0; text-align: center; text-transform: uppercase; width: 100%; -webkit-transition: background 250ms ease; -moz-transition: background 250ms ease; -o-transition: background 250ms ease; transition: background 250ms ease;}
+p {text-align: center; text-decoration: none; color: #87c1d3; font-size: 18px;}
+a {text-decoration: none; color: #ffffff; margin-top: 0%;}
+#status {text-align: center; text-decoration: none; color: #336859; font-size: 14px;}
+</style>
+<script>
+function statusPlanta() {
+var intervalo = document.forms["myForm"]["intervalo"].value;
+}
+</script>
+</head>
+<body>
+<div class="container">
+<h2><span id="titleGreen">Cyber</span><span id="titleBlack">Planta &#x1F331</span></h2>
+<h3>Como está sua planta agora?</h3>
+<h4>
+)=====";
+
+////////////////////////ULTIMA PARTE DA PAGINA
+const char depois[] PROGMEM = R"=====(
+</h4>
+<form name="myForm" action="/action_new_connection" onsubmit="return validateForm()" method="post">
+<br>
+<div class="field-group">
+<input class="text-field" type="number" name="intervalo" placeholder="&#9201 Deseja agendar a próxima rega?*">
+(Insira daqui a quanto tempo a planta deve ser regada)<br><br>
+Isso definirá o intervalo entre regas:<br><b> 0 = agora</b><br> <b>999 = nunca</b>.<br>
+<div id="statusDiv">
+<br>
+</div>
+<div class="button-container">
+<input class="button" type="submit" value="Enviar">
+</div>
+</form>
+</div>
+</div>
+</body>
+</html>
+)=====";
+
 
 void setup() {
   //pinMode(A0, INPUT);
@@ -68,10 +135,10 @@ void setup() {
 
 void loop() {
   delay(1000);
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  h = dht.readHumidity();
+  t = dht.readTemperature();
 
-  float luz = luximetro.readLightLevel();
+  luz = luximetro.readLightLevel();
 
   if(isnan(t) || isnan(t)){
     Serial.println(F("Falhou ao ler o sensor DHT"));
@@ -79,10 +146,10 @@ void loop() {
   }
   if(contador>10)contador=0;umidade=0;
   contador++;
-  int instantanea = analogRead(sensor_solo);
+  instantanea = analogRead(sensor_solo);
   umidade+= instantanea;
-  int media = umidade/contador;
-  int um_pct = map(instantanea,150,500,100,1);
+  media = umidade/contador;
+  um_pct = map(instantanea,150,500,100,1);
   Serial.print(F("Umidade ar: "));
   Serial.print(h);
   Serial.println(F("%"));
@@ -101,59 +168,26 @@ void loop() {
   Serial.println(luz);
   //delay(500);
   WiFiClient client = server.available();
+  
 client.println("HTTP/1.1 200 OK");
 client.println("Content-Type: text/html");
 client.println("Connection: close");  // the connection will be closed after completion of the response
 client.println("Refresh: 10");  // update the page after 10 sec
 client.println();
-client.println("<!DOCTYPE HTML>");
-client.println("<html>");
-client.println("<style>html { font-family: 'Trebuchet MS', sans-serif; display: block; margin: 0px auto; text-align: center;color: #333333; background-color: #8ccef3;}");
-client.println("body{margin-top: 50px;}");
-client.println("h1 {margin: 50px auto 30px; font-size: 50px; text-align: center;}");
-client.println(".side_adjust{display: inline-block;vertical-align: left;position: relative;}");
-client.println(".text1{font-weight: 180; font-size: 50px; width: 170px; text-align: left; color: #4d4d4d;}");
-client.println(".data1{font-weight: 180; padding-left: 60px; font-size: 50px;color: #4d4d4d;}");
-client.println(".text2{font-weight: 180; font-size: 50px; width: 170px; text-align: left; color: #4d4d4d;}");
-client.println(".data2{font-weight: 180; padding-left: 150px; font-size: 50px;color: #4d4d4d;}");
-client.println(".text3{font-weight: 180; padding-left: 15px; font-size: 50px; width: 170px; text-align: left; color: #4d4d4d;}");
-client.println(".data3{font-weight: 180; padding-left: 80px; font-size: 50px;color: #4d4d4d;}");
-client.println(".text4{font-weight: 180; padding-left: 15px; font-size: 50px; width: 170px; text-align: left; color: #4d4d4d;}");
-client.println(".data4{font-weight: 180; padding-left: 80px; font-size: 50px;color: #4d4d4d;}");
-client.println(".data{padding: 10px;}");
-client.println("</style>");
-client.println("</head>");
-client.println("<body>");
-client.println("<div id=\"webpage\">");   
-client.println("<h1>Cyber Planta Server</h1>");
-client.println("<div class=\"data\">");
-client.println("<div class=\"side_adjust text1\">Umidade:</div>");
-//client.println("Umidade: ");
-client.println("<div class=\"side_adjust data1\">");
-client.print(h);
-client.println("<div class=\"side_adjust text1\">%</div>");
-client.println("</div>");
-client.println("<div class=\"data\">");
-client.println("<div class=\"side_adjust text2\">Temperatura:</div>");
-client.println("<div class=\"side_adjust data2\">");
-client.print(t);
-client.println("<div class=\"side_adjust text2\"> C</div>");
-client.println("</div>");
-client.println("<div class=\"data\">");
-client.println("<div class=\"side_adjust text3\">Luz:</div>");
-client.println("<div class=\"side_adjust data3\">");
-client.print(luz);
-client.println("<div class=\"side_adjust text3\">lx</div>");
-client.println("</div>");
-client.println("</div>");
-client.println("<div class=\"data\">");
-client.println("<div class=\"side_adjust text4\">Solo:</div>");
-client.println("<div class=\"side_adjust data4\">");
-client.print(um_pct);
-client.println("<div class=\"side_adjust text4\">%</div>");
-client.println("</div>");
-client.println("</div>");
-client.println("</body>");
-client.println("</html>");
- delay(4000);
+//String responsePage = (const __FlashStringHelper*) MAIN_page;
+//client.println(responsePage);
+String primeiraParte = (const __FlashStringHelper*) antes;
+String ultimaParte = (const __FlashStringHelper*) depois;
+client.println(primeiraParte);
+client.println("&#x1F4A7 Umidade do ar: ");
+client.println(h);
+client.println("%<br>&#x1F321 Temperatura: ");
+client.println(t);
+client.println("ºC<br>&#x1F505 Luz: ");
+client.println(luz);
+client.println(" lx<br>&#x1F4A7 Umidade do solo: ");
+client.println(um_pct);
+client.println("%<br>&#9201 Última rega: ");
+client.println(ultimaParte);
+
 }
