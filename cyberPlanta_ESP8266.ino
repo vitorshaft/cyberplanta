@@ -48,7 +48,7 @@ const char antes[] PROGMEM = R"=====(
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>HTML Form ESP8266 - ESPAlexa</title>
+<title>Cyber Planta</title>
 <style>
 body {color: #434343; font-family: "Helvetica Neue",Helvetica,Arial,sans-serif; font-size: 14px; background-color: #393939; margin-top: 100px;}
 .container {margin: 0 auto; max-width: 400px; padding: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23); background-color: #ffffff; border-radius: 10px;}
@@ -82,12 +82,12 @@ var intervalo = document.forms["myForm"]["intervalo"].value;
 ////////////////////////ULTIMA PARTE DA PAGINA
 const char depois[] PROGMEM = R"=====(
 </h4>
-<form name="myForm" action="/action_new_connection" onsubmit="return validateForm()" method="post">
+<form name="formTempo" action="/get">
 <br>
 <div class="field-group">
-<input class="text-field" type="number" name="intervalo" placeholder="&#9201 Deseja agendar a próxima rega?*">
-(Insira daqui a quanto tempo a planta deve ser regada)<br><br>
-Isso definirá o intervalo entre regas:<br><b> 0 = agora</b><br> <b>999 = nunca</b>.<br>
+input: <input type="number" name="intervalo" placeholder="&#9201 Intervalo de notificações">
+
+(Insira daqui a quanto tempo (minutos) será a próxima notificação)<br><br>
 <div id="statusDiv">
 <br>
 </div>
@@ -172,7 +172,7 @@ void loop() {
 client.println("HTTP/1.1 200 OK");
 client.println("Content-Type: text/html");
 client.println("Connection: close");  // the connection will be closed after completion of the response
-client.println("Refresh: 10");  // update the page after 10 sec
+client.println("Refresh: 20");  // Atualiza o servidor a cada 20 segundos
 client.println();
 //String responsePage = (const __FlashStringHelper*) MAIN_page;
 //client.println(responsePage);
@@ -187,7 +187,7 @@ client.println("ºC<br>&#x1F505 Luz: ");
 client.println(luz);
 client.println(" lx<br>&#x1F4A7 Umidade do solo: ");
 client.println(um_pct);
-client.println("%<br>&#9201 Última rega: ");
+//client.println("%<br>&#9201 Última rega: ");
 client.println(ultimaParte);
 
 }
