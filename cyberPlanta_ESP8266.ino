@@ -155,8 +155,9 @@ void atualizarTimer(){
   Serial.println("Timer atualizado!");
   if(header[19]>47 && header[19]<58) estadoForm = ((int)header[19])-48;  //coleta tempo preenchido no formulario
   agora = millis();           //atualiza tempo atual
-  //TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
-  TIMER = 1000*estadoForm;
+  TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
+  //A linha de baixo é para testar em intervalos de 1 segundo (ver linha 246)
+  //TIMER = 1000*estadoForm;
   TIMER = agora+TIMER;        //define o timer
   Serial.println("Timer atualizado!");
   }
@@ -240,8 +241,9 @@ void loop() {
   Serial.println(agora);
   if(TIMER > 0 && TIMER < millis()){
     regar(bomba);
-    //TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
-    1000*estadoForm;
+    TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
+    //A linha de baixo é para testar em intervalos de 1 segundo
+    //1000*estadoForm;
     TIMER = agora+TIMER;        //define o timer
   }
   
