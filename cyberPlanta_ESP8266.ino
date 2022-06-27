@@ -30,6 +30,19 @@ DHT dht(DHTPIN,DHTTYPE);
 BH1750 luximetro;
 WiFiServer server(80);
 
+//Variável para armazenar o request HTTP
+String header;
+
+//Variaveis auxiliares para armazenar os estados do formulario e bomba
+int estadoForm = 0;
+String estadoBomba = "off";
+int TIMER = 0;
+int agora = 0;
+
+//GPIO da bomba
+//const int bomba = 2;
+#define bomba LED_BUILTIN
+
 int sensor_solo = 0;
 
 int contador = 0;
@@ -80,18 +93,20 @@ var intervalo = document.forms["myForm"]["intervalo"].value;
 )=====";
 
 ////////////////////////ULTIMA PARTE DA PAGINA
-const char depois[] PROGMEM = R"=====(
+String lacuna = "&#9201 Intervalo de"+String(estadoForm)+"h";
+
+const char depoisOn[] PROGMEM = R"=====(
 </h4>
 <form name="formTempo" action="/get">
 <br>
 <div class="field-group">
-input: <input type="number" name="intervalo" placeholder="&#9201 Intervalo de notificações">
-
-(Insira daqui a quanto tempo (minutos) será a próxima notificação)<br><br>
+<input type="number" name="intervalo" maxlength="30" placeholder="&#9201 Mudar intervalo (h)"><br>
+(Defina o intervalo de rega em horas)<br><br>
 <div id="statusDiv">
 <br>
 </div>
 <div class="button-container">
+<a href=\"/timer/on\">
 <input class="button" type="submit" value="Enviar">
 </div>
 </form>
@@ -101,10 +116,59 @@ input: <input type="number" name="intervalo" placeholder="&#9201 Intervalo de no
 </html>
 )=====";
 
+const char depoisOff[] PROGMEM = R"=====(
+</h4>
+<form name="formTempo" action="/get">
+<br>
+<div class="field-group">
+<input type="number" name="intervalo" maxlength="30" placeholder="&#9201 Mudar intervalo (h)"><br>
+(Defina o intervalo de rega em horas)<br><br>
+<div id="statusDiv">
+<br>
+</div>
+<div class="button-container">
+
+<a href=\"/timer/off\">
+<input class="button" type="submit" value="Enviar">
+</a>
+</div>
+</form>
+</div>
+</div>
+</body>
+</html>
+)=====";
+
+void regar(int rele){
+  digitalWrite(rele,LOW);
+  while(millis()< (agora+1000)){
+    
+  }
+  digitalWrite(rele,HIGH);
+}
+
+void atualizarTimer(){
+  if(((int)header[19])-48 != estadoForm){
+  //Serial.println(header.indexOf("GET /get?intervalo=1"));
+  Serial.println(header[19]);
+  estadoBomba = "on";
+  Serial.println("Timer atualizado!");
+  if(header[19]>47 && header[19]<58) estadoForm = ((int)header[19])-48;  //coleta tempo preenchido no formulario
+  agora = millis();           //atualiza tempo atual
+  //TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
+  TIMER = 1000*estadoForm;
+  TIMER = agora+TIMER;        //define o timer
+  Serial.println("Timer atualizado!");
+  }
+}
 
 void setup() {
   //pinMode(A0, INPUT);
-  Serial.begin(9600);
+  Serial.begin(115200);
+
+  pinMode(bomba, OUTPUT);
+  digitalWrite(bomba,HIGH);
+  
   dht.begin();
   Wire.begin();
   luximetro.begin();
@@ -135,6 +199,7 @@ void setup() {
 
 void loop() {
   delay(1000);
+  lacuna = "&#9201 Intervalo de"+String(estadoForm)+"h";
   h = dht.readHumidity();
   t = dht.readTemperature();
 
@@ -166,28 +231,120 @@ void loop() {
   Serial.println(F("%"));
   Serial.print(F("Luz(lx): "));
   Serial.println(luz);
+  Serial.print("TIMER: ");
+  Serial.println(TIMER);
   //delay(500);
-  WiFiClient client = server.available();
-  
-client.println("HTTP/1.1 200 OK");
-client.println("Content-Type: text/html");
-client.println("Connection: close");  // the connection will be closed after completion of the response
-client.println("Refresh: 20");  // Atualiza o servidor a cada 20 segundos
-client.println();
-//String responsePage = (const __FlashStringHelper*) MAIN_page;
-//client.println(responsePage);
-String primeiraParte = (const __FlashStringHelper*) antes;
-String ultimaParte = (const __FlashStringHelper*) depois;
-client.println(primeiraParte);
-client.println("&#x1F4A7 Umidade do ar: ");
-client.println(h);
-client.println("%<br>&#x1F321 Temperatura: ");
-client.println(t);
-client.println("ºC<br>&#x1F505 Luz: ");
-client.println(luz);
-client.println(" lx<br>&#x1F4A7 Umidade do solo: ");
-client.println(um_pct);
-//client.println("%<br>&#9201 Última rega: ");
-client.println(ultimaParte);
 
+  agora = millis();
+  Serial.print("Agora: ");
+  Serial.println(agora);
+  if(TIMER > 0 && TIMER < millis()){
+    regar(bomba);
+    //TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
+    1000*estadoForm;
+    TIMER = agora+TIMER;        //define o timer
+  }
+  
+  WiFiClient client = server.available();
+  if (client) {                             // Se um novo cliente conecta,
+    Serial.println("Novo Cliente.");          // exibe a mensagem na Serial
+    String currentLine = "";                // Cria String para armazenar dados vindos do cliente
+    while (client.connected()) {            // Enquanto cliente permanecer conectado...
+      if (client.available()) {             // Se houver bytes a serem lidos do cliente,
+        char c = client.read();             // le um byte e...
+        Serial.write(c);                    // ...printa no monitor Serial
+        header += c;
+        if (c == '\n') {                    // se houver mudança de linha...
+          // Se a linha atual estiver vazia, voce tem duas mudanças de linha.
+          // Significa que a requisicao HTTP do cliente encerrou. Deve-se enviar uma resposta:
+          if (currentLine.length() == 0) {
+            // HTTP sempre começa com um codigo de resposta (ex.: HTTP/1.1 200 OK)
+
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: text/html");
+              client.println("Connection: close");  // the connection will be closed after completion of the response
+              client.println("Refresh: 10");  // Atualiza o servidor a cada 20 segundos
+              client.println();
+              
+              //JURO QUE A SOLUÇÃO MAIS ESTAVEL FOI USANDO IF/ELSE ;-;
+              if(header.indexOf("GET /get?intervalo=1")>= 0){// HTTP/1.1"){
+                atualizarTimer();
+              }
+              else if (header.indexOf("GET /get?intervalo=2") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=3") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=4") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=5") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=6") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=7") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=8") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=9") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=10") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=11") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=12") >= 0) {
+                atualizarTimer();
+            }
+            else if (header.indexOf("GET /get?intervalo=0") >= 0) {
+                atualizarTimer();
+            }
+              String primeiraParte = (const __FlashStringHelper*) antes;
+              String ultimaParteOn = (const __FlashStringHelper*) depoisOn;
+              String ultimaParteOff = (const __FlashStringHelper*) depoisOff;
+              client.println(primeiraParte);
+              client.println("&#x1F4A7 Umidade do ar: ");
+              client.println(h);
+              client.println("%<br>&#x1F321 Temperatura: ");
+              client.println(t);
+              client.println("ºC<br>&#x1F505 Luz: ");
+              client.println(luz);
+              client.println(" lx<br>&#x1F4A7 Umidade do solo: ");
+              client.println(um_pct);
+              client.println("%<br>&#9201 Intervalo de regas: ");
+              client.println(estadoForm);
+              client.println(" h");
+              if (estadoBomba=="off") {
+              client.println(ultimaParteOn);
+              }
+              else{
+                client.println(ultimaParteOff);
+              }
+              client.println();
+              break;
+          }
+          else{ //se houver uma nova linha, apagar a linha atual
+            currentLine = "";
+          }
+      }
+        else if (c != '\r'){  //se houver qualquer coisa exceto \r...
+          currentLine+=c; //adicione essa cosia ao fim da linha atual
+        }
+      }
+    }
+    header = "";
+    //Descomente as linhas abaixo para desconectar o cliente a cada update
+    //fecha conexao
+    //client.stop();
+    //Serial.println("Cliente desconectado.");
+    //Serial.println("");
+  
+  }
 }
