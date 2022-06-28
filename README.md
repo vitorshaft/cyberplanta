@@ -1,6 +1,9 @@
+
 <body>
 <h1>CyberPlanta</h1>
 <h2>Automação de plantas usando ESP8266</h2>
+<img src="https://github.com/vitorshaft/cyberplanta/blob/main/print_da_Interface.jpg" alt="GUI">
+
 <h3>Inclui monitoração de:<br><br>
 - Temperatura ambiente<br>
 - Umidade do ar<br>
@@ -19,5 +22,6 @@ Componentes necessários:<br><br>
 - Bomba hidráulica DC (pode ser de aquário)<br>
 - Cabinhos duPont (também chamados de "jumpers")<br>
 - Protoboard (para ficar organizado)<br><br>
-![My Image](print_da_Interface.jpg)
 </body>
+
+![Esquematico](conexoes_cyberPlanta_bb.png)
