@@ -1,3 +1,5 @@
+
+
 /*    _              __  _   
      | |            / _|| |  
  ___ | |__    __ _ | |_ | |_ 
@@ -14,10 +16,17 @@
 /* 1. Baixar e instalar libs WiFiManager https://github.com/tzapu/WiFiManager
     e Arduino JSON https://github.com/bblanchon/ArduinoJson
 */
+
+//1. MODIFICAR FUNCAO atualizarTimer() para usar hora NTP ao inves de millis() - OK
+//2. Passar HTML para arquivo HTML
+//3. Inserir esquematico no projeto do Github
+
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 #include "DHT.h"
 #include <BH1750.h>
 #include <Wire.h>
@@ -30,6 +39,10 @@ DHT dht(DHTPIN,DHTTYPE);
 BH1750 luximetro;
 WiFiServer server(80);
 
+//Definição do Cliente NTP pra pegar a hora da rede
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
+
 //Variável para armazenar o request HTTP
 String header;
 
@@ -38,6 +51,13 @@ int estadoForm = 0;
 String estadoBomba = "off";
 int TIMER = 0;
 int agora = 0;
+int currentHour;
+int currentMinute;
+int somaHora;
+time_t epochTime;
+String form;
+int formInt;
+String proximaRega;
 
 //GPIO da bomba
 //const int bomba = 2;
@@ -139,26 +159,28 @@ const char depoisOff[] PROGMEM = R"=====(
 </html>
 )=====";
 
+//Rega por 1 segundo e atualiza o timer
 void regar(int rele){
   digitalWrite(rele,LOW);
-  while(millis()< (agora+1000)){
+  //while(millis()< (agora+1000)){
+  while(epochTime < (agora+2)){
     
   }
   digitalWrite(rele,HIGH);
+  TIMER = agora+(estadoForm*3600);  //hora atual em segundos + timer em segundos (horas*3600 seg)
 }
 
 void atualizarTimer(){
-  if(((int)header[19])-48 != estadoForm){
-  //Serial.println(header.indexOf("GET /get?intervalo=1"));
-  Serial.println(header[19]);
-  estadoBomba = "on";
+  if(formInt != estadoForm){  //checa se o intervalo já não estava configurado
+  Serial.println(formInt);
+  estadoBomba = "off";
   Serial.println("Timer atualizado!");
-  if(header[19]>47 && header[19]<58) estadoForm = ((int)header[19])-48;  //coleta tempo preenchido no formulario
-  agora = millis();           //atualiza tempo atual
-  TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
-  //A linha de baixo é para testar em intervalos de 1 segundo (ver linha 246)
-  //TIMER = 1000*estadoForm;
-  TIMER = agora+TIMER;        //define o timer
+  estadoForm = formInt; //atualiza a variavel de intervalo de rega        
+  agora = epochTime;  //atualiza tempo atual  
+  TIMER = agora+(estadoForm*3600);  //define o timer
+  somaHora = currentHour+estadoForm;  //Atualiza proxima hora de rega
+  if(somaHora >=24) somaHora = somaHora-24; //corrige se a soma passar de meia-noite
+  proximaRega = String(somaHora)+":"+String(currentMinute);   //formata o texto do proximo horario de rega hh:mm
   Serial.println("Timer atualizado!");
   }
 }
@@ -178,44 +200,68 @@ void setup() {
   // Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
   
-  // Uncomment and run it once, if you want to erase all the stored information
+  // Descomente e rode uma vez para apagar as credenciais de rede salvas
   //wifiManager.resetSettings();
   
-  // set custom ip for portal
+  // Personalize o IP
   //wifiManager.setAPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
 
-  // fetches ssid and pass from eeprom and tries to connect
-  // if it does not connect it starts an access point with the specified name
-  // here  "AutoConnectAP"
-  // and goes into a blocking loop awaiting configuration
+  // Salva SSID na EEPROM e tenta conectar
+  // Se não conectar, cria um Access Point com nome definido
   wifiManager.autoConnect("Cyber Planta");
-  // or use this for auto generated name ESP + ChipID
+  // Se quiser o nome padrão deixe conforme linha abaixo
   //wifiManager.autoConnect();
   
   // if you get here you have connected to the WiFi
   Serial.println("Conectado.");
   
   server.begin();
+
+  timeClient.begin();
+  // Configure seu fuso horario conforme padrão abaixo:
+  // GMT +1 = 3600
+  // GMT +8 = 28800
+  // GMT -1 = -3600
+  // GMT 0 = 0
+  // GMT -3 = 10800
+  timeClient.setTimeOffset(-10800);
 }
 
 void loop() {
-  delay(1000);
-  lacuna = "&#9201 Intervalo de"+String(estadoForm)+"h";
+  delay(500);
+  //pega hora atual em (segundos)
+  timeClient.update();  
+  epochTime = timeClient.getEpochTime();
+  Serial.print("Epoch Time: ");
+  Serial.println(epochTime);
+  //Cria string de hora formatada (hh:mm:ss)
+  String formattedTime = timeClient.getFormattedTime();
+  Serial.print("Hora formatada: ");
+  Serial.println(formattedTime);
+  //Separa uma string pras horas e uma pros minutos
+  currentHour = timeClient.getHours();
+  currentMinute = timeClient.getMinutes();
+
+  //Leitura dos sensores:
   h = dht.readHumidity();
   t = dht.readTemperature();
 
   luz = luximetro.readLightLevel();
 
+  //Só pra garantir que o DHT não passe ruído
   if(isnan(t) || isnan(t)){
     Serial.println(F("Falhou ao ler o sensor DHT"));
     return;
   }
+  //Como a umidade do solo oscila, aqui a gente tira uma média de 10 valores:
   if(contador>10)contador=0;umidade=0;
   contador++;
   instantanea = analogRead(sensor_solo);
   umidade+= instantanea;
   media = umidade/contador;
-  um_pct = map(instantanea,150,500,100,1);
+  um_pct = map(instantanea,150,500,100,1);  //um_pct é a umidade em %
+
+  
   Serial.print(F("Umidade ar: "));
   Serial.print(h);
   Serial.println(F("%"));
@@ -236,15 +282,10 @@ void loop() {
   Serial.println(TIMER);
   //delay(500);
 
-  agora = millis();
-  Serial.print("Agora: ");
-  Serial.println(agora);
-  if(TIMER > 0 && TIMER < millis()){
+  //Se a hora atual passar da hora do timer, executa regar()
+  //if(TIMER > 0 && TIMER < millis()){
+  if(TIMER > 0 && TIMER < epochTime){
     regar(bomba);
-    TIMER = 3600000*estadoForm; //converte horas do timer em milissegundos
-    //A linha de baixo é para testar em intervalos de 1 segundo
-    //1000*estadoForm;
-    TIMER = agora+TIMER;        //define o timer
   }
   
   WiFiClient client = server.available();
@@ -267,52 +308,25 @@ void loop() {
               client.println("Connection: close");  // the connection will be closed after completion of the response
               client.println("Refresh: 10");  // Atualiza o servidor a cada 20 segundos
               client.println();
-              
-              //JURO QUE A SOLUÇÃO MAIS ESTAVEL FOI USANDO IF/ELSE ;-;
-              if(header.indexOf("GET /get?intervalo=1")>= 0){// HTTP/1.1"){
+
+              form = header.substring(19,21);
+              formInt = form.toInt();
+              Serial.print("Feedback do form: ");
+              Serial.print(form);
+              Serial.println(", ");
+              Serial.println(formInt);
+
+              if(formInt > 0){
                 atualizarTimer();
               }
-              else if (header.indexOf("GET /get?intervalo=2") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=3") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=4") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=5") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=6") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=7") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=8") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=9") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=10") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=11") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=12") >= 0) {
-                atualizarTimer();
-            }
-            else if (header.indexOf("GET /get?intervalo=0") >= 0) {
-                atualizarTimer();
-            }
+              
               String primeiraParte = (const __FlashStringHelper*) antes;
               String ultimaParteOn = (const __FlashStringHelper*) depoisOn;
               String ultimaParteOff = (const __FlashStringHelper*) depoisOff;
               client.println(primeiraParte);
-              client.println("&#x1F4A7 Umidade do ar: ");
+              client.print("&#x231A Hora atual: ");
+              client.print(formattedTime);
+              client.println("<br>&#x1F4A7 Umidade do ar: ");
               client.println(h);
               client.println("%<br>&#x1F321 Temperatura: ");
               client.println(t);
@@ -323,6 +337,9 @@ void loop() {
               client.println("%<br>&#9201 Intervalo de regas: ");
               client.println(estadoForm);
               client.println(" h");
+              client.print("<br>&#x231A Próxima rega: ");
+              //String proximaRega = String(somaHora)+":"+String(currentMinute);
+              client.println(proximaRega);
               if (estadoBomba=="off") {
               client.println(ultimaParteOn);
               }
