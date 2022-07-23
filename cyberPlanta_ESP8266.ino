@@ -1,5 +1,3 @@
-
-
 /*    _              __  _   
      | |            / _|| |  
  ___ | |__    __ _ | |_ | |_ 
@@ -166,10 +164,10 @@ void loop() {
   luz = luximetro.readLightLevel();
 
   //Só pra garantir que o DHT não passe ruído
-  if(isnan(t) || isnan(t)){
+  /*if(isnan(t) || isnan(t)){
     Serial.println(F("Falhou ao ler o sensor DHT"));
     return;
-  }
+  }*/
   //Como a umidade do solo oscila, aqui a gente tira uma média de 10 valores:
   if(contador>10)contador=0;umidade=0;
   contador++;
@@ -223,7 +221,7 @@ void loop() {
               client.println("HTTP/1.1 200 OK");
               client.println("Content-Type: text/html");
               client.println("Connection: close");  // the connection will be closed after completion of the response
-              client.println("Refresh: 10");  // Atualiza o servidor a cada 20 segundos
+              client.println("Refresh: 10");  // Atualiza o servidor a cada 10 segundos
               client.println();
 
               form = header.substring(19,21);
